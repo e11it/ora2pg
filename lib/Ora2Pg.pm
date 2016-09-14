@@ -1723,11 +1723,15 @@ sub _tables
 		if (!$self->{skip_fkeys}) {
 			my ($foreign_link, $foreign_key) = $self->_foreign_key('',$self->{schema});
 			foreach my $tb (keys %{$foreign_link}) {
+				printf("|^^^|%s| tb = %s\n",__LINE__, $tb);
 				next if (!exists $tables_infos{$tb});
+				printf("|^^^|%s| OK tb = %s\n",__LINE__, $tb);
 				%{$self->{tables}{$tb}{foreign_link}} =  %{$foreign_link->{$tb}};
 			}
 			foreach my $tb (keys %{$foreign_key}) {
+				printf("|^^^|%s| tb = %s\n",__LINE__, $tb);
 				next if (!exists $tables_infos{$tb});
+				printf("|^^^|%s| OK tb = %s\n",__LINE__, $tb);
 				push(@{$self->{tables}{$tb}{foreign_key}}, @{$foreign_key->{$tb}});
 			}
 		}
@@ -6335,8 +6339,9 @@ sub _create_foreign_keys
 	# Add constraint definition
 	my @done = ();
 	foreach my $fkname (keys %{$self->{tables}{$tbsaved}{foreign_link}}) {
-
+		printf("|*** ***| FK: %s\n",$fkanme);
 		next if (grep(/^$fkname$/, @done));
+		printf("|*** process: | FK: %s\n",$fkanme);
 		foreach my $desttable (keys %{$self->{tables}{$tbsaved}{foreign_link}{$fkname}{remote}}) {
 			push(@done, $fkname);
 			my $str = '';
@@ -6347,7 +6352,9 @@ sub _create_foreign_keys
 			# Extract all attributes if the foreign key definition
 			my $state;
 			foreach my $h (@{$self->{tables}{$tbsaved}{foreign_key}}) {
+				printf("|*** *| Search fkname[%s] == %s\n", $fkname, $h->[0]);
 				if ($h->[0] eq $fkname) {
+					printf("|*** *| Push: fk=%s val: ["."%s " x @$h."]\n", $fkname, @$h);
 					push(@$state, @$h);
 					last;
 				}
@@ -6395,6 +6402,7 @@ sub _create_foreign_keys
 			}
 			$str .= "ALTER TABLE $table ADD CONSTRAINT $fkname FOREIGN KEY (" . join(',', @lfkeys) . ") REFERENCES $subsdesttable(" . join(',', @rfkeys) . ")";
 			$str .= " MATCH $state->[2]" if ($state->[2]);
+			printf("|***| States 0:%s, 1:%s, 2:%s, 3:%s, 4:%s\n", $state->[0],$state->[1],$state->[2],$state->[3],$state->[4]);
 			if ($state->[3]) {
 				$str .= " ON DELETE $state->[3]";
 			} else {
@@ -6417,6 +6425,7 @@ sub _create_foreign_keys
 			} else {
 				$str .= ";\n";
 			}
+			printf("|***|%d| STR: %s\n",__LINE__, $str);
 			push(@out, $str);
 		}
 	}
@@ -7455,17 +7464,35 @@ END
 	my %link = ();
 	#my @tab_done = ();
 	while (my $row = $sth->fetch) {
-		if (!$self->{schema} && $self->{export_schema}) {
-			push(@{$data{"$row->[10].$row->[0]"}}, [ ($row->[1],$row->[4],$row->[6],$row->[7],$row->[8],$row->[9],$row->[11],$row->[0],$row->[10]) ]);
-			push(@{$link{"$row->[10].$row->[0]"}{$row->[1]}{local}}, $row->[2]);
-			push(@{$link{"$row->[10].$row->[0]"}{$row->[1]}{remote}{"$row->[11].$row->[3]"}}, $row->[5]);
-		} else {
-			push(@{$data{$row->[0]}}, [ ($row->[1],$row->[4],$row->[6],$row->[7],$row->[8],$row->[9],$row->[11],$row->[0],$row->[10]) ]);
-			#            TABLENAME  CONSTNAME           COLNAME
-			push(@{$link{$row->[0]}{$row->[1]}{local}}, $row->[2]);
-			#            TABLE     CONSTNAME          TABLENAME   COLNAME
-			push(@{$link{$row->[0]}{$row->[1]}{remote}{$row->[3]}}, $row->[5]);
-		}
+		print "|@@@| new row\n";
+	      if (!$self->{schema} && $self->{export_schema}) {
+	              push(@{$data{"$row->[10].$row->[0]"}}, [ ($row->[1],$row->[4],$row->[6],$row->[7],$row->[8],$row->[9],$row->[11],$row->[0],$row->[10]) ]);
+	              printf("|@@@| Push1 DATA{%s.%s} = %s, %s, %s, %s, %s, %s, %s, %s, %s\n", $row->[10], $row->[0], $row->[1],$row->[4],$row->[6],$row->[7],$row->[8],$row->[9],$row->[11],$row->[0],$row->[10]);
+	
+	              if (!grep(/^$row->[2]$/, @{$link{"$row->[10].$row->[0]"}{$row->[1]}{local}})) {
+	                      push(@{$link{"$row->[10].$row->[0]"}{$row->[1]}{local}}, $row->[2]);
+	                      printf("|@@@| Push LINK{%s.%s}{%s}{%s} = %s\n", $row->[10], $row->[0], $row->[1], 'local', $row->[2]);
+	              }
+	
+	              if (!grep(/^$row->[5]$/, @{$link{"$row->[10].$row->[0]"}{$row->[1]}{remote}{"$row->[11].$row->[3]"}})) {
+	                      push(@{$link{"$row->[10].$row->[0]"}{$row->[1]}{remote}{"$row->[11].$row->[3]"}}, $row->[5]);
+	                      printf("|@@@| Push LINK{%s.%s}{%s}{%s}{%s.%s} = %s\n", $row->[10], $row->[0], $row->[1], 'remote', $row->[11], $row->[3], $row->[5]);
+	              }
+	      } else {
+	              push(@{$data{$row->[0]}}, [ ($row->[1],$row->[4],$row->[6],$row->[7],$row->[8],$row->[9],$row->[11],$row->[0],$row->[10]) ]);
+	              printf("|@@@| Push2 DATA{%s} = [%s, %s, %s, %s, %s, %s, %s, %s, %s]\n", $row->[0], $row->[1],$row->[4],$row->[6],$row->[7],$row->[8],$row->[9],$row->[11],$row->[0],$row->[10]);
+	
+	              #            TABLENAME  CONSTNAME           COLNAME
+	              if (!grep(/^$row->[2]$/, @{$link{$row->[0]}{$row->[1]}{local}})) {
+	                      push(@{$link{$row->[0]}{$row->[1]}{local}}, $row->[2]);
+	                      printf("|@@@| Push LINK{%s}{%s}{%s} = %s\n", $row->[0], $row->[1], 'local', $row->[2] );
+	              }
+	              #            TABLE     CONSTNAME          TABLENAME   COLNAME
+	              if (!grep(/^$row->[5]$/, @{$link{$row->[0]}{$row->[1]}{remote}{$row->[3]}})) {
+	                      push(@{$link{$row->[0]}{$row->[1]}{remote}{$row->[3]}}, $row->[5]);
+	                      printf("|@@@| Push LINK{%s}{%s}{%s}{%s} = %s\n", $row->[0], $row->[1], 'remote', $row->[3], $row->[5] );
+	              }
+	      }
 	}
 
 	return \%link, \%data;
